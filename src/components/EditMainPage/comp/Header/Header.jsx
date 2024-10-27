@@ -1,10 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 
 export default function Header() {
   // Define state to manage the text and editing mode
   const [isEditing, setIsEditing] = useState(false);
-  const [headerText, setHeaderText] = useState("Sambhav Bejitech Private Limited");
+  const [headerText, setHeaderText] = useState('Sambhav Bejitech Private Limited');
   const [tempText, setTempText] = useState(headerText);
+
+  // Fetch the initial header text from the backend
+  useEffect(() => {
+    axios.get('http://localhost:3001/api/header')
+      .then((response) => {
+        // Set the headerText and tempText to the value from companyHeader
+        setHeaderText(response.data.companyHeader);
+        setTempText(response.data.companyHeader);
+      })
+      .catch((error) => {
+        console.error('Error fetching header text:', error);
+      });
+  }, []);
 
   // Function to handle enabling editing mode
   const handleEditClick = () => {
@@ -16,10 +30,18 @@ export default function Header() {
     setTempText(e.target.value);
   };
 
-  // Function to handle save
+  // Function to handle save (send the updated text to the backend)
   const handleSave = () => {
-    setHeaderText(tempText);
-    setIsEditing(false);
+    axios
+      .post('http://localhost:3001/api/header', { text: tempText })
+      .then((response) => {
+        setHeaderText(tempText);
+        setIsEditing(false);
+        console.log('Header text saved:', response.data);
+      })
+      .catch((error) => {
+        console.error('Error saving header text:', error);
+      });
   };
 
   return (

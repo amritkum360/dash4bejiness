@@ -20,7 +20,7 @@ export default function MainPage(){
         <AboutUs2 />
         <CompanyImg />
         <Certificates />
-        <ReadyToShipSection />
+        {/* <ReadyToShipSection /> */}
         <TopPick />
         </>
     )

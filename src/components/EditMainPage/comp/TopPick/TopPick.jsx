@@ -1,105 +1,110 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
 
 export default function TopPick() {
   const initialProducts = [
     {
-      img: "path_to_image_1.jpg",
+      img: "image1.jpg",
       title: "Breathable · Light Weight · Pvc",
       description: "Hongyan Comfortable lightweight SHOE MAN sneakers Breathable...",
       price: "$1.33 - $3.00",
       minOrder: "Min. Order: 2 pairs",
       easyReturn: "Easy Return",
       orders: "62 orders",
+      file: null,
     },
-    {
-      img: "path_to_image_2.jpg",
-      title: "Hongyan Men's shoes Summer breathable mesh shoes Men's...",
-      description: "Hongyan Comfortable lightweight SHOE MAN sneakers Breathable...",
-      price: "$0.92 - $1.59",
-      minOrder: "Min. Order: 2 pairs",
-      easyReturn: "Easy Return",
-      orders: "143 orders",
-    },
-    {
-      img: "path_to_image_3.jpg",
-      title: "Hongyan Mesh men's shoes breathable men's casual running...",
-      description: "Hongyan Comfortable lightweight SHOE MAN sneakers Breathable...",
-      price: "$1.99 - $2.99",
-      minOrder: "Min. Order: 2 pairs",
-      easyReturn: "Easy Return",
-      orders: "219 orders",
-    },
-    {
-      img: "path_to_image_4.jpg",
-      title: "Hongyan Men's shoes popcorn new running shoes breathable...",
-      description: "Hongyan Comfortable lightweight SHOE MAN sneakers Breathable...",
-      price: "$1.99 - $2.99",
-      minOrder: "Min. Order: 2 pairs",
-      easyReturn: "Easy Return",
-      orders: "169 orders",
-    },
-    {
-      img: "path_to_image_5.jpg",
-      title: "Hongyan man shoes white men casual trainer sneakers custom...",
-      description: "Hongyan Comfortable lightweight SHOE MAN sneakers Breathable...",
-      price: "$0.93 - $1.59",
-      minOrder: "Min. Order: 2 pairs",
-      easyReturn: "Easy Return",
-      orders: "290 orders",
-    },
+    // Add other initial products as needed...
   ];
 
   const [products, setProducts] = useState(initialProducts);
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Function to toggle edit mode
-  const toggleEdit = () => {
+  useEffect(() => {
+    axios
+      .get("http://localhost:3001/api/toppick")
+      .then((response) => {
+        const { products } = response.data;
+        setProducts(products.map(product => ({ ...product, file: null })));
+      })
+      .catch((error) => {
+        console.error("Error fetching top picks:", error);
+      });
+  }, []);
+
+  const toggleEdit = async () => {
+    if (isEditing) {
+      setLoading(true);
+
+      const updatedProducts = await Promise.all(
+        products.map(async (product) => {
+          if (product.file) {
+            const formData = new FormData();
+            formData.append("image", product.file);
+
+            const response = await axios.post("http://localhost:3001/api/upload-image", formData, {
+              headers: { "Content-Type": "multipart/form-data" },
+            });
+
+            return { ...product, img: response.data.imageUrl, file: null };
+          }
+          return product;
+        })
+      );
+
+      const data = { products: updatedProducts };
+      try {
+        await axios.post("http://localhost:3001/api/toppick", data);
+        setProducts(updatedProducts);
+        console.log("Top picks saved successfully.");
+      } catch (error) {
+        console.error("Error saving top picks:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
     setIsEditing(!isEditing);
   };
 
-  // Function to handle input changes for product fields
   const handleTextChange = (e, index, field) => {
     const updatedProducts = [...products];
     updatedProducts[index][field] = e.target.value;
     setProducts(updatedProducts);
   };
 
-  // Function to handle image uploads
   const handleImageUpload = (e, index) => {
     const file = e.target.files[0];
-    const newImageSrc = URL.createObjectURL(file); // Convert file to URL for preview
     const updatedProducts = [...products];
-    updatedProducts[index].img = newImageSrc;
+    updatedProducts[index].file = file;
     setProducts(updatedProducts);
   };
 
   return (
-    <section className="relative p-8">
+    <section className="relative p-4 sm:p-8">
       {/* Background container */}
-      <div className="absolute inset-0 bg-black h-40  rounded-t-lg"></div>
+      <div className="absolute inset-0 bg-black h-20 sm:h-40 rounded-t-lg"></div>
 
       {/* Content */}
       <div className="relative">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-white">Top picks</h2>
-          <a href="#" className="text-gray-300 hover:text-white">
+        {/* Header with "Ready to Ship" and "View More" button */}
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-4 sm:mb-6">
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2 sm:mb-0">
+            Ready to Ship
+          </h2>
+          <a
+            href="#"
+            className="text-sm sm:text-base text-gray-300 hover:text-white"
+          >
             View more &rarr;
           </a>
         </div>
 
         {/* Product Cards */}
-        <div className="flex space-x-4 overflow-x-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {products.map((product, index) => (
-            <div
-              key={index}
-              className="bg-white text-black rounded-lg shadow-lg p-4 w-64 relative"
-            >
-              <img
-                src={product.img}
-                alt={product.title}
-                className="rounded-md mb-4 w-full h-40 object-cover"
-              />
+            <div key={index} className="bg-white text-black rounded-lg shadow-lg p-4 flex flex-col">
+              <img src={product.img} alt={product.title} className="rounded-md mb-4 w-full h-32 sm:h-40 object-cover" />
               {isEditing ? (
                 <>
                   <input
@@ -138,7 +143,7 @@ export default function TopPick() {
                     onChange={(e) => handleTextChange(e, index, "orders")}
                     className="text-gray-400 text-sm mb-2 bg-gray-100 p-2 w-full"
                   />
-                  <label className="bg-yellow-500 text-black font-bold py-1 px-4 rounded-full cursor-pointer hover:bg-yellow-600">
+                  <label className="bg-yellow-500 text-black font-bold py-1 px-4 rounded-full cursor-pointer hover:bg-yellow-600 mt-2">
                     Upload Image
                     <input
                       type="file"
@@ -167,8 +172,9 @@ export default function TopPick() {
           <button
             onClick={toggleEdit}
             className="bg-white text-black font-bold py-2 px-6 rounded-full hover:bg-yellow-600"
+            disabled={loading}
           >
-            {isEditing ? "Save" : "Edit Section"}
+            {isEditing ? (loading ? "Saving..." : "Save") : "Edit Section"}
           </button>
         </div>
       </div>

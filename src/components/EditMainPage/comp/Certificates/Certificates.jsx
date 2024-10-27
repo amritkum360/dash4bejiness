@@ -1,19 +1,32 @@
 import { useState, useRef, useEffect } from "react";
+import axios from "axios";
 
 export default function Certificates() {
-  // State to manage the certificate URLs and edit mode
   const [certificateUrls, setCertificateUrls] = useState([
-    "url_to_certificate_1.jpg",
-    "url_to_certificate_2.jpg",
-    "url_to_certificate_3.jpg",
+    { id: 1, src: "certificate1.jpg" },
+    { id: 2, src: "certificate2.jpg" },
+    { id: 3, src: "certificate3.jpg" }
   ]);
-  
+
   const [isEditing, setIsEditing] = useState(false);
   const [showArrows, setShowArrows] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [selectedCertificate, setSelectedCertificate] = useState(null); // State to track selected certificate for modal view
   const carouselRef = useRef(null);
 
   useEffect(() => {
-    // Check if the number of certificates exceeds the screen width, show arrows if needed
+    axios
+      .get("http://localhost:3001/api/certificates-section")
+      .then((response) => {
+        const { certificateUrls } = response.data;
+        setCertificateUrls(certificateUrls.map((url, index) => ({ id: index + 1, src: url })));
+      })
+      .catch((error) => {
+        console.error("Error fetching Certificates:", error);
+      });
+  }, []);
+
+  useEffect(() => {
     if (carouselRef.current.scrollWidth > carouselRef.current.clientWidth) {
       setShowArrows(true);
     } else {
@@ -21,7 +34,6 @@ export default function Certificates() {
     }
   }, [certificateUrls]);
 
-  // Function to scroll carousel left or right
   const scrollCarousel = (direction) => {
     if (carouselRef.current) {
       const scrollAmount = direction === "left" ? -300 : 300;
@@ -29,26 +41,61 @@ export default function Certificates() {
     }
   };
 
-  // Function to handle adding a new certificate
   const handleAddCertificate = () => {
-    setCertificateUrls([...certificateUrls, ""]);
+    setCertificateUrls([...certificateUrls, { id: certificateUrls.length + 1, src: "", file: null }]);
   };
 
-  // Function to handle certificate image upload
-  const handleImageUpload = (e, index) => {
+  const handleImageFileChange = (e, index) => {
     const file = e.target.files[0];
-    const newSrc = URL.createObjectURL(file); // Convert file to URL for preview
-    setCertificateUrls(certificateUrls.map((url, i) => (i === index ? newSrc : url)));
+    setCertificateUrls(
+      certificateUrls.map((item, i) => (i === index ? { ...item, file } : item))
+    );
   };
 
-  // Function to handle removing a certificate
   const handleRemoveCertificate = (index) => {
     setCertificateUrls(certificateUrls.filter((_, i) => i !== index));
   };
 
-  // Toggle edit mode
-  const toggleEdit = () => {
-    setIsEditing(!isEditing);
+  const toggleEdit = async () => {
+    if (isEditing) {
+      setLoading(true);
+      const updatedCertificateUrls = await Promise.all(
+        certificateUrls.map(async (item) => {
+          if (item.file) {
+            const formData = new FormData();
+            formData.append("image", item.file);
+
+            const response = await axios.post("http://localhost:3001/api/upload-image", formData, {
+              headers: { "Content-Type": "multipart/form-data" }
+            });
+
+            return { id: item.id, src: response.data.imageUrl };
+          }
+          return item;
+        })
+      );
+
+      const data = { certificateUrls: updatedCertificateUrls.map(item => item.src) };
+      try {
+        await axios.post("http://localhost:3001/api/certificates-section", data);
+        setCertificateUrls(updatedCertificateUrls);
+        console.log("Certificates saved successfully.");
+      } catch (error) {
+        console.error("Error saving Certificates:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    setIsEditing(!isEditing); // Toggle edit mode
+  };
+
+  const openModal = (certificate) => {
+    setSelectedCertificate(certificate);
+  };
+
+  const closeModal = () => {
+    setSelectedCertificate(null);
   };
 
   return (
@@ -63,29 +110,27 @@ export default function Certificates() {
           } overflow-x-auto snap-x snap-mandatory scrollbar-hide space-x-6`}
           ref={carouselRef}
         >
-          {certificateUrls.map((url, index) => (
+          {certificateUrls.map((item) => (
             <div
-              key={index}
+              key={item.id}
               className="flex-shrink-0 w-[175px] h-[247px] p-4 snap-center bg-gray-100 rounded-md relative"
+              onClick={() => openModal(item)}
             >
               <img
-                src={url}
-                alt={`Certificate ${index + 1}`}
-                className="w-full h-full object-cover rounded-md"
+                src={item.src}
+                alt={`Certificate ${item.id}`}
+                className="w-full h-full object-cover rounded-md cursor-pointer"
               />
               {isEditing && (
                 <>
-                  <label className="absolute top-2 left-2 bg-yellow-500 text-black font-bold py-1 px-2 rounded-full cursor-pointer hover:bg-yellow-600">
-                    Upload
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleImageUpload(e, index)}
-                      className="hidden"
-                    />
-                  </label>
+                  <input
+                    type="file"
+                    onChange={(e) => handleImageFileChange(e, item.id - 1)}
+                    className="w-full p-2 bg-white border border-gray-300 rounded mt-2"
+                    placeholder={`Upload Certificate ${item.id}`}
+                  />
                   <button
-                    onClick={() => handleRemoveCertificate(index)}
+                    onClick={() => handleRemoveCertificate(item.id - 1)}
                     className="absolute top-2 right-2 bg-red-500 text-white font-bold py-1 px-2 rounded-full hover:bg-red-600"
                   >
                     &#10005;
@@ -131,10 +176,36 @@ export default function Certificates() {
         <button
           onClick={toggleEdit}
           className="bg-white text-black font-bold py-2 px-6 rounded-full hover:bg-yellow-600"
+          disabled={loading}
         >
-          {isEditing ? "Save" : "Edit Section"}
+          {isEditing ? (loading ? "Saving..." : "Save") : "Edit Section"}
         </button>
       </div>
+
+      {/* Modal for viewing larger certificate */}
+      {selectedCertificate && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+          onClick={closeModal}
+        >
+          <div
+            className="relative bg-white rounded-lg p-4 max-w-xs md:max-w-md w-full h-auto max-h-[800px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closeModal}
+              className="absolute top-2 right-2 bg-red-500 text-white font-bold py-1 px-2 rounded-full hover:bg-red-600"
+            >
+              &#10005;
+            </button>
+            <img
+              src={selectedCertificate.src}
+              alt="Selected Certificate"
+              className="w-full h-auto rounded-lg max-w-[400px] max-h-[800px] object-contain"
+            />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -20,7 +20,7 @@ export default function EditMainPage(){
         <AboutUs2 />
         <CompanyImg />
         <Certificates />
-        <ProductShowcase />
+        {/* <ProductShowcase /> */}
         <TopPick />
         </>
     )
